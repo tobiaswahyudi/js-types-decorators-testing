@@ -1,6 +1,9 @@
 import { DecoratedTypeError } from './DecoratedTypeError';
 import { Logged, LogAtInit, LogParamAtInit, String, ValidateParamTypes } from './decorators';
 
+/****************************************************************
+*   Decorating Class Methods
+****************************************************************/
 class SayHi {
 
   name = "";
@@ -24,7 +27,6 @@ class SayHi {
   */
 }
 
-
 const bob = new SayHi("Bob");
 
 // Should be OK
@@ -43,3 +45,46 @@ try {
     throw e;
   }
 }
+
+/****************************************************************
+*   Decorating Standalone Functions
+****************************************************************/
+
+// @Logged
+// function simonSays(phrase: string): void {
+//   console.log(`Simon says: ${phrase}!`);
+// }
+
+// const simonSays = ((phrase: string) => {
+//   console.log(`Simon says: ${phrase}!`);
+// })::Logged;
+
+// const simonSays = {
+//   @Logged
+//   func(phrase: string){
+//     console.log(`Simon says: ${phrase}!`);
+//   }
+// }.func;
+
+// simonSays("jump");
+
+
+// interface Person {
+//   name: String,
+//   age: Number
+// }
+
+// const aPerson: Person = {
+//   name: "robert",
+//   age: 42
+// }
+// const notAPerson: Number = 5;
+
+// function getNameLength(person: Person): Number {
+//     return person.name.length;
+// }
+
+// getNameLength(aPerson);
+// // >> 6
+
+// getNameLength(notAPerson);

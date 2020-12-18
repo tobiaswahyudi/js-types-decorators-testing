@@ -8,9 +8,11 @@
     "noImplicitAny": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "target": "ES6"
+    "target": "ES6",
+    "moduleResolution": "node"
   },
   "files": [
-    "src/index.ts"
+    "src/index.ts",
+    "src/telescope.ts"
   ]
 }

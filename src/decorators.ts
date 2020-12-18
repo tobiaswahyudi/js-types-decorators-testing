@@ -1,4 +1,6 @@
-import { DecoratedTypeError } from './DecoratedTypeError';
+import { Contract, Runtype, Unknown } from 'runtypes';
+
+
 
 /***************************************
  *  Logging Decorators
@@ -7,7 +9,7 @@ import { DecoratedTypeError } from './DecoratedTypeError';
     When the class declarations are evaluated, the ParameterDecorators are run first, then the
     MethodDecorators.
 
-    Method decorators can return a modified descriptor or modify them directly, due to shallow copies.
+    Method decorators can return a modified descriptor or modify them directly.
     Parameter decorators cannot return any value (or any returned value is ignored). In the type checking
     decorators, we attach metadata (checker functions) to the class prototype.
 
@@ -47,57 +49,63 @@ export const LogParamAtInit: ParameterDecorator = (target: object, propertyKey: 
  */
 
 
-const METHOD_CHECKERS_KEY = "_DecoratorTypesMethodChecker";
+const METHOD_RUNTYPES_KEY = "_DecoratorTypesMethodRuntype";
 
-const InitializeMethodCheckersArray = (target: object, propertyKey: string) => {
-  if (!Object.getOwnPropertyDescriptor(target, METHOD_CHECKERS_KEY)) {
-    // Define an empty <PropertyKey, Validator[]> map for the object prototype.
-    Object.defineProperty(target, METHOD_CHECKERS_KEY, {
+const InitializeMethodRuntypesArray = (target: object, propertyKey: string) => {
+  if (!Object.getOwnPropertyDescriptor(target, METHOD_RUNTYPES_KEY)) {
+    // Define an empty <PropertyKey, Runtype[]> map for the object prototype.
+    Object.defineProperty(target, METHOD_RUNTYPES_KEY, {
       value: {}
     });
   }
-  const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_CHECKERS_KEY)
+  const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_RUNTYPES_KEY)
   if (propDescriptor?.value && !propDescriptor.value[propertyKey]) {
-    // In the Method Checkers map, define a Validator[] array for each PropertyKey.
+    // In the Method-to-Runtypes map, define a Runtype[] array for each PropertyKey.
     propDescriptor.value[propertyKey] = [];
   } else {
-    throw new Error(`Unable to initialize param checkers array to method ${propertyKey}.`);
+    throw new Error(`Unable to initialize param runtypes array to method ${propertyKey}.`);
   }
 }
 
-const AddMethodParameterChecker = <T>(target: object, propertyKey: string, parameterIndex: number, checker: (arg: T) => boolean) => {
-  const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_CHECKERS_KEY)
+const AddMethodParameterRuntype = <T>(target: object, propertyKey: string, parameterIndex: number, runtype: Runtype<T>) => {
+  const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_RUNTYPES_KEY)
   if (!propDescriptor?.value || !propDescriptor.value[propertyKey]) {
-    throw new Error(`Unable to add parameter ${parameterIndex} checker to method ${propertyKey}.`);
+    throw new Error(`Unable to add parameter ${parameterIndex} runtype to method ${propertyKey}.`);
   }
-  propDescriptor.value[propertyKey][parameterIndex] = checker;
+  propDescriptor.value[propertyKey][parameterIndex] = runtype;
 }
 
-
-
-export const ValidateParamTypes: MethodDecorator = (target: object, propertyKey: string, descriptor: PropertyDescriptor) => {
-  const origMethod = descriptor.value;
-  const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_CHECKERS_KEY);
-  if (!propDescriptor?.value || !propDescriptor.value[propertyKey]) {
-    console.warn(`Function ${propertyKey} was annotated @ValidateParamTypes but no param checkers were found.`);
-    return;
+export const ValidateRTypes = <T>(returnRuntype: Runtype<T>): MethodDecorator => {
+  return (target: object, propertyKey: string, descriptor: PropertyDescriptor) => {
+    const origMethod = descriptor.value;
+    // Get the method's Runtype[] array and ensure it is not undefined.
+    const propDescriptor = Object.getOwnPropertyDescriptor(target, METHOD_RUNTYPES_KEY);
+    if (!propDescriptor?.value || !propDescriptor.value[propertyKey]) {
+      console.warn(`Function ${propertyKey} was annotated @ValidateParamTypes but no param runtypes were found.`);
+      return;
+    }
+    // Replace undefined Runtypes with the "Unknown" Runtype
+    const runtypes: Runtype[] = [...propDescriptor.value[propertyKey]]
+      .map(runtype => runtype || Unknown);
+    // Replace the method with a contract-bound version
+    descriptor.value = Contract(
+      ...runtypes,
+      // @ts-ignore - needed here, explanation provided in appendix.
+      returnRuntype
+    ).enforce(origMethod);
   }
-  const checkers = [...propDescriptor.value[propertyKey]];
-  descriptor.value = function (...args: any[]) {
-    checkers.forEach(
-      (checker, idx) => {
-        if (!checker(args[idx])) {
-          throw new DecoratedTypeError(`Function ${propertyKey}:\nParameter at index ${idx} failed type check.`);
-        }
-      }
-    )
-    return origMethod.apply(this, args);
-  };
-}
+};
 
+export const RType = <T>(runtype: Runtype<T>): ParameterDecorator => {
+  return (target: object, propertyKey: string, parameterIndex: number) => {
+    InitializeMethodRuntypesArray(target, propertyKey);
+    AddMethodParameterRuntype(target, propertyKey, parameterIndex, runtype);
+  }
+};
+/*
 export const String: ParameterDecorator = (target: object, propertyKey: string, parameterIndex: number) => {
-  InitializeMethodCheckersArray(target,propertyKey);
-  AddMethodParameterChecker(target, propertyKey, parameterIndex,
+  InitializeMethodRuntypesArray(target,propertyKey);
+  AddMethodParameterRuntype(target, propertyKey, parameterIndex,
     function (arg) {
       return typeof (arg) === 'string';
     }
@@ -105,10 +113,11 @@ export const String: ParameterDecorator = (target: object, propertyKey: string, 
 }
 
 export const Number: ParameterDecorator = (target: object, propertyKey: string, parameterIndex: number) => {
-  InitializeMethodCheckersArray(target,propertyKey);
-  AddMethodParameterChecker(target, propertyKey, parameterIndex,
+  InitializeMethodRuntypesArray(target,propertyKey);
+  AddMethodParameterRuntype(target, propertyKey, parameterIndex,
     function (arg) {
       return typeof (arg) === 'number';
     }
   );
 }
+*/
